@@ -93,6 +93,9 @@ contains
       use sources, only: source_option_krook, source_option_projection
       use sources, only: source_option_switch, int_krook, int_proj
       use sources, only: include_qn_source
+#ifdef ADIOS2
+      use adios2
+#endif
 
       implicit none
 
@@ -112,7 +115,13 @@ contains
       integer, dimension(3) :: start_pos, counts
 # endif
       logical :: exit
-
+#ifdef ADIOS2
+      type(adios2_adios) :: adios2obj
+      type(adios2_io), save :: io
+      type(adios2_engine), save :: engine
+      type(adios2_variable) :: varid
+      integer :: mype
+#endif
 !*********-----------------------_**********************
 
       istatus = 0
@@ -122,6 +131,9 @@ contains
          exit = .false.
       end if
 
+#ifdef ADIOS2
+      call MPI_Comm_rank(mp_comm, mype, ierr)
+#endif
 !    if (proc0) then
 !      write (*,*) "Starting save_for_restart in ", restart_file
 !      write (*,*) "List restart files"
@@ -236,6 +248,8 @@ contains
                goto 1
             end if
 
+            print *, "glo:", n_elements, total_elements
+            print *, "gvmulo:", nvmulo_elements, total_vmulo_elements
 # ifdef NETCDF_PARALLEL
             if (save_many) then
 # endif
@@ -440,6 +454,24 @@ contains
             write (ierr, *) "nf90_enddef error: ", nf90_strerror(istatus)
             goto 1
          end if
+#ifdef ADIOS2
+         call adios2_init(adios2obj, "adios2cfg.xml", mp_comm, ierr)
+         call adios2_declare_io(io, adios2obj, "restart", ierr)
+         call adios2_define_variable(varid, io, "tube",  adios2_type_integer4, ierr)
+         call adios2_define_variable(varid, io, "zed",  adios2_type_integer4, ierr)
+         call adios2_define_variable(varid, io, "vpa",  adios2_type_integer4, ierr)
+         call adios2_define_variable(varid, io, "mu",  adios2_type_integer4, ierr)
+         call adios2_define_variable(varid, io, "glo",  adios2_type_integer4, ierr)
+         call adios2_define_variable(varid, io, "gvmulo",  adios2_type_integer4, ierr)
+         call adios2_define_variable(varid, io, "aky",  adios2_type_integer4, ierr)
+         call adios2_define_variable(varid, io, "akx",  adios2_type_integer4, ierr)
+
+         call adios2_define_variable(varid, io, "istep0",  adios2_type_integer4, ierr)
+         call adios2_define_variable(varid, io, "t0",  adios2_type_dp, ierr)
+         call adios2_define_variable(varid, io, "delt0",  adios2_type_dp, ierr)
+         call adios2_define_variable(varid, io, "gr", adios2_type_dp, 3, int((/ nvpa, nmu, total_elements /), kind=8), int((/ 0, 0, kxkyz_lo%llim_proc /), kind=8), int((/ nvpa, nmu, n_elements /), kind=8), adios2_constant_dims, ierr)
+         call adios2_define_variable(varid, io, "gi", adios2_type_dp, 3, int((/ nvpa, nmu, total_elements /), kind=8), int((/ 0, 0, kxkyz_lo%llim_proc /), kind=8), int((/ nvpa, nmu, n_elements /), kind=8), adios2_constant_dims, ierr)
+#endif
       end if
 
     !!!-----------------------!!!
@@ -482,6 +514,23 @@ contains
          return
       end if
 
+#ifdef ADIOS2
+      call MPI_Comm_rank(mp_comm, mype, ierr)
+      call adios2_open(engine, io, "restart.bp", adios2_mode_write, mp_comm, ierr)
+      call adios2_put(engine, "tube",  ntubes, ierr)
+      call adios2_put(engine, "zed",  2 * nzgrid + 1, ierr)
+      call adios2_put(engine, "vpa",  nvpa, ierr)
+      call adios2_put(engine, "mu",  nmu, ierr)
+      call adios2_put(engine, "glo",  total_elements, ierr)
+      call adios2_put(engine, "gvmulo",  total_vmulo_elements, ierr)
+      call adios2_put(engine, "aky",  naky, ierr)
+      call adios2_put(engine, "akx",  nakx, ierr)
+
+      call adios2_put(engine, "istep0",  istep0, ierr)
+      call adios2_put(engine, "t0",  t0, ierr)
+      call adios2_put(engine, "delt0",  delt0, ierr)
+#endif
+
       if (n_elements > 0) then
 
          if (.not. allocated(tmpr)) &
@@ -489,6 +538,10 @@ contains
 
          tmpr = real(g)
 
+#ifdef ADIOS2
+         print *, "gr:", shape(tmpr)
+         call adios2_put(engine, "gr",  tmpr, ierr)
+#endif
 # ifdef NETCDF_PARALLEL
          if (save_many) then
 # endif
@@ -508,6 +561,10 @@ contains
          if (istatus /= NF90_NOERR) call netcdf_error(istatus, ncid, gr_id)
 
          tmpr = aimag(g)
+#ifdef ADIOS2
+         print *, "gi:", shape(tmpr)
+         call adios2_put(engine, "gi",  tmpr, ierr)
+#endif
 # ifdef NETCDF_PARALLEL
          if (save_many) then
 # endif
@@ -687,6 +744,10 @@ contains
          'WARNING: stella_save_for_restart is called without netcdf library'
 
 # endif
+
+#ifdef ADIOS2
+      call adios2_close(engine, ierr)
+#endif
 
       if (allocated(tmpr)) deallocate (tmpr)
       if (allocated(tmpi)) deallocate (tmpi)

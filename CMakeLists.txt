@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(stella
   VERSION 0.3
-  LANGUAGES Fortran)
+  LANGUAGES C CXX Fortran)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
@@ -332,3 +332,8 @@ message("
    Build type               : ${CMAKE_BUILD_TYPE}
    Compiler                 : ${CMAKE_Fortran_COMPILER}
 ")
+
+find_package(ADIOS2 REQUIRED)
+target_compile_definitions(libstella PUBLIC ADIOS2)
+target_link_libraries(libstella PUBLIC adios2::adios2_f)
+# target_link_libraries(libstella PUBLIC adios2::cxx11_mpi MPI::MPI_C)
