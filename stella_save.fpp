@@ -120,7 +120,7 @@ contains
       type(adios2_io), save :: io
       type(adios2_engine), save :: engine
       type(adios2_variable) :: varid
-      integer :: mype
+      character(64) :: filename
 #endif
 !*********-----------------------_**********************
 
@@ -131,9 +131,6 @@ contains
          exit = .false.
       end if
 
-#ifdef ADIOS2
-      call MPI_Comm_rank(mp_comm, mype, ierr)
-#endif
 !    if (proc0) then
 !      write (*,*) "Starting save_for_restart in ", restart_file
 !      write (*,*) "List restart files"
@@ -248,8 +245,6 @@ contains
                goto 1
             end if
 
-            print *, "glo:", n_elements, total_elements
-            print *, "gvmulo:", nvmulo_elements, total_vmulo_elements
 # ifdef NETCDF_PARALLEL
             if (save_many) then
 # endif
@@ -515,8 +510,9 @@ contains
       end if
 
 #ifdef ADIOS2
-      call MPI_Comm_rank(mp_comm, mype, ierr)
-      call adios2_open(engine, io, "restart.bp", adios2_mode_write, mp_comm, ierr)
+      write(filename,'(a,"/","restart",".",i4.4,".bp")') "restart_dir", istep0
+      ! if (iproc.eq.0) print *, "restart write", trim(filename)
+      call adios2_open(engine, io, filename, adios2_mode_write, mp_comm, ierr)
       call adios2_put(engine, "tube",  ntubes, ierr)
       call adios2_put(engine, "zed",  2 * nzgrid + 1, ierr)
       call adios2_put(engine, "vpa",  nvpa, ierr)
@@ -539,7 +535,6 @@ contains
          tmpr = real(g)
 
 #ifdef ADIOS2
-         print *, "gr:", shape(tmpr)
          call adios2_put(engine, "gr",  tmpr, ierr)
 #endif
 # ifdef NETCDF_PARALLEL
@@ -562,7 +557,6 @@ contains
 
          tmpr = aimag(g)
 #ifdef ADIOS2
-         print *, "gi:", shape(tmpr)
          call adios2_put(engine, "gi",  tmpr, ierr)
 #endif
 # ifdef NETCDF_PARALLEL
