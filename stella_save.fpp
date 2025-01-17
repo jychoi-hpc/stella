@@ -143,7 +143,7 @@ contains
       nvmulo_elements = vmu_lo%ulim_proc - vmu_lo%llim_proc + 1
       total_vmulo_elements = vmu_lo%ulim_world + 1
 
-      if (n_elements <= 0) return
+      if (n_elements <= 0) n_elements = 0 !! a process can have 0 or negative n_elements
 
       has_vmulo = nvmulo_elements > 0 .or. .not. save_many
 
